@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"go.bug.st/serial"
 	"log"
 	"net"
 	"strconv"
@@ -17,6 +18,17 @@ const (
 	SafetyPositions = "90 45 180 180 90 10"
 )
 
+var validSerialSpeeds = []int{9600, 19200, 38400, 57600, 115200}
+
+func isValidSerialSpeed(speed int) bool {
+	for _, s := range validSerialSpeeds {
+		if s == speed {
+			return true
+		}
+	}
+	return false
+}
+
 type Motor struct {
 	Name     string
 	Min      int
@@ -25,15 +37,18 @@ type Motor struct {
 }
 
 type RobotState struct {
-	Base        Motor
-	Shoulder    Motor
-	Elbow       Motor
-	Wrist       Motor
-	WristRotate Motor
-	Gripper     Motor
-	Delay       int
-	Sim         bool
-	Connected   bool
+	Base         Motor
+	Shoulder     Motor
+	Elbow        Motor
+	Wrist        Motor
+	WristRotate  Motor
+	Gripper      Motor
+	Delay        int
+	Sim          bool
+	Connected    bool
+	SerialPort   string
+	SerialSpeed  int
+	SerialHandle serial.Port
 }
 
 func NewRobotState(sim bool) *RobotState {
@@ -108,18 +123,44 @@ func handleCommand(cmd string, state *RobotState) string {
 	switch fields[0] {
 	case "CONNECT":
 		if state.Connected {
-			return "ALREADY CONNECTED"
+			if state.SerialHandle != nil {
+				state.SerialHandle.Close()
+				state.SerialHandle = nil
+			}
+			state.Connected = false
 		}
-		// In real mode, would open serial port here. For now, just set Connected.
+		if state.Sim {
+			state.Connected = true
+			return "CONNECTED"
+		}
+		if len(fields) < 3 {
+			return "ERROR Missing port or speed"
+		}
+		port := fields[1]
+		speed, err := strconv.Atoi(fields[2])
+		if err != nil || !isValidSerialSpeed(speed) {
+			return "ERROR Invalid speed"
+		}
+		mode := &serial.Mode{BaudRate: speed}
+		handle, err := serial.Open(port, mode)
+		if err != nil {
+			return fmt.Sprintf("ERROR opening serial: %v", err)
+		}
+		state.SerialPort = port
+		state.SerialSpeed = speed
+		state.SerialHandle = handle
 		state.Connected = true
-		return "CONNECTED"
+		return "OK"
 	case "DISCONNECT":
 		if !state.Connected {
-			return "ALREADY DISCONNECTED"
+			return "OK"
 		}
-		// In real mode, would close serial port here. For now, just set Connected.
+		if state.SerialHandle != nil {
+			state.SerialHandle.Close()
+			state.SerialHandle = nil
+		}
 		state.Connected = false
-		return "DISCONNECTED"
+		return "OK"
 	case "SET":
 		if !state.Connected {
 			return "ROBOT NOT CONNECTED"
@@ -128,15 +169,34 @@ func handleCommand(cmd string, state *RobotState) string {
 			return "INVALID NUMBER OF PARAMETERS"
 		}
 		if fields[1] == "ALL" {
-			return setAllMotors(fields[2:], state)
+			resp := setAllMotors(fields[2:], state)
+			if !state.Sim && state.SerialHandle != nil && resp == "OK" {
+				cmd := fmt.Sprintf("SET ALL %d %d %d %d %d %d %d\n", state.Base.Position, state.Shoulder.Position, state.Elbow.Position, state.Wrist.Position, state.WristRotate.Position, state.Gripper.Position, state.Delay)
+				state.SerialHandle.Write([]byte(cmd))
+			}
+			return resp
 		} else if fields[1] == "DELAY" {
 			return setDelay(fields[2:], state)
 		} else if strings.HasPrefix(fields[1], "M") {
-			return setMotor(fields[1:], state)
+			resp := setMotor(fields[1:], state)
+			if !state.Sim && state.SerialHandle != nil && resp == "OK" {
+				cmd := fmt.Sprintf("SET ALL %d %d %d %d %d %d %d\n", state.Base.Position, state.Shoulder.Position, state.Elbow.Position, state.Wrist.Position, state.WristRotate.Position, state.Gripper.Position, state.Delay)
+				state.SerialHandle.Write([]byte(cmd))
+			}
+			return resp
 		}
 		return "INVALID COMMAND SYNTAX"
 	case "GET":
 		if len(fields) == 2 && fields[1] == "STATUS" {
+			if !state.Sim && state.SerialHandle != nil {
+				state.SerialHandle.Write([]byte("GET STATUS\n"))
+				buf := make([]byte, 128)
+				n, err := state.SerialHandle.Read(buf)
+				if err == nil && n > 0 {
+					return strings.TrimSpace(string(buf[:n]))
+				}
+				return "ERROR reading status"
+			}
 			return state.Status()
 		}
 		if len(fields) == 2 && fields[1] == "LIMITS" {
@@ -148,7 +208,12 @@ func handleCommand(cmd string, state *RobotState) string {
 			return "ROBOT NOT CONNECTED"
 		}
 		if len(fields) == 2 && fields[1] == "SAFETY" {
-			return moveSafety(state)
+			resp := moveSafety(state)
+			if !state.Sim && state.SerialHandle != nil && resp == "OK" {
+				cmd := fmt.Sprintf("SET ALL %s 20\n", SafetyPositions)
+				state.SerialHandle.Write([]byte(cmd))
+			}
+			return resp
 		}
 		return "INVALID COMMAND SYNTAX"
 	case "PING":
@@ -157,6 +222,15 @@ func handleCommand(cmd string, state *RobotState) string {
 		}
 		if !state.Connected {
 			return "ERROR"
+		}
+		if state.SerialHandle != nil {
+			state.SerialHandle.Write([]byte("PING\n"))
+			buf := make([]byte, 32)
+			n, err := state.SerialHandle.Read(buf)
+			if err == nil && n > 0 {
+				return strings.TrimSpace(string(buf[:n]))
+			}
+			return "ERROR reading ping"
 		}
 		return "OK"
 	case "HELP":

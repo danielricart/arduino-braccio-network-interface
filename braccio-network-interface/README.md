@@ -82,8 +82,25 @@ The serial side of the communications is used to send commands to the Braccio ro
 
 Serial communications will be set at 115200 bps to minimize latency and blocking time.
 
+The library used to communicate with the serial port is go.bug.st/serial. Documentation is here: https://pkg.go.dev/go.bug.st/serial
+
 #### Commands
 - `SET ALL <M1> <M2> <M3> <M4> <M5> <M6> <delay>`: Set all motors to the specified positions. using the specified propagation `delay` in milliseconds.
 - `GET STATUS`: Get the current status of all motors and delay. The response will be in the format: `STATUS M1:<value> M2:<value> M3:<value> M4:<value> M5:<value> M6:<value> DELAY:<value>`.
 - `MOVE SAFETY`: Move all motors to the predefined safety position. Always use 20ms delay.
 - `PING`: Check if the connection is alive. The response will be `OK` if the robot is available. `ERROR` if the robot is not available due to any error.
+
+#### Responses
+- `OK`: Command executed successfully.
+- `ERROR <message>`: An error occurred while processing the command. `<message>` provides details about the error.
+- `STATUS M1:<value> M2:<value> M3:<value> M4:<value> M5:<value> M6:<value> DELAY:<value>`: Current status of all motors and current delay.
+- `UNKNOWN COMMAND`: The command received is not recognized.
+- `INVALID PARAMETERS`: The parameters provided with the command are not valid.
+- `MOTOR OUT OF RANGE`: The specified motor value is outside the allowed range.
+- `ROBOT NOT AVAILABLE`: The robot is not available due to a connection or hardware error
+- `ROBOT BUSY`: The robot is currently executing another command and cannot process the new command.
+- `INVALID DELAY`: The specified delay value is not valid.
+- `INVALID MOTOR`: The specified motor number is not valid.
+- `INVALID FORMAT`: The command format is incorrect.
+- `INVALID VALUE`: The specified value is not valid.
+
