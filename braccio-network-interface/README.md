@@ -49,6 +49,7 @@ There are commands to set each motor position individually or all motors at once
 - `SET ALL <M1> <M2> <M3> <M4> <M5> <M6> <delay>`: Set all motors to the specified positions. using the specified propagation `delay` in milliseconds. `<delay>` is optional; if not provided, the default delay will be used.
 - `SET DELAY <delay>`: Set the default propagation delay between motor movements to `<delay>` milliseconds. This delay will be used for subsequent motor movements unless overridden by a specific command.
 - `GET STATUS`: Get the current status of all motors and delay. The response will be in the format: `STATUS M1:<value> M2:<value> M3:<value> M4:<value> M5:<value> M6:<value> DELAY:<value>`.
+- `GET LIMITS`: Get the allowed limits for each motor. The response will be in the format: `LIMITS M1:<min>-<max> M2:<min>-<max> M3:<min>-<max> M4:<min>-<max> M5:<min>-<max> M6:<min>-<max> DELAY:<min>-<max>`.
 - `MOVE SAFETY`: Move all motors to the predefined safety position. Always use 20ms delay.
 - `PING`: Check if the connection is alive. The response will be `OK` if the robot is available. `DRY` if working on simulation mode. `ERROR` if the robot is not available due to any error.
 - `CONNECT <port> <speed>`: Connect to the Braccio robot on the specified serial `<port>`. If already connected, it will first disconnect and then connect to the new port and speed. <speed> will set the serial speed (one of 9600, 19200, 38400, 57600, 115200, 230400, 460800, 921600). It will respond `OK` if successful, or `ERROR <message>` if there was an error.
