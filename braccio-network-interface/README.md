@@ -29,6 +29,14 @@ It includes a simulation mode that does not try to connect to the Braccio, usefu
 - M6=gripper degrees. Allowed values from 10 to 73 degrees. 10: the gripper is open, 73: the gripper is closed.
 - Propagation time between motor movements: 10 to 30 ms. configurable
 
+### Motor speed
+- M1: speed 3.3 milliseconds per degree
+- M2: speed 3.3 milliseconds per degree
+- M3: speed 3.3 milliseconds per degree
+- M4: speed 3.3 milliseconds per degree
+- M5: speed 2.3 milliseconds per degree
+- M6: speed 2.3 milliseconds per degree
+
 ### Safety position
 - Base (M1):90 degrees
 - Shoulder (M2): 45 degrees
@@ -37,6 +45,13 @@ It includes a simulation mode that does not try to connect to the Braccio, usefu
 - Wrist rotation (M5): 90 degrees
 - gripper (M6): 10 degrees
 - Propagation time between motor movements: 20 ms
+
+### Articulations and arms lengths
+- Base articulation height: 72 mm
+- Arm length: 125 mm
+- Forearm length: 55 mm
+- Hand length: 134 mm
+- Maximum reach: 525 mm
 
 ## Protocol definition
 ### Network side
@@ -86,6 +101,7 @@ The library used to communicate with the serial port is go.bug.st/serial. Docume
 
 #### Commands
 - `SET ALL <M1> <M2> <M3> <M4> <M5> <M6> <delay>`: Set all motors to the specified positions. using the specified propagation `delay` in milliseconds.
+- `SET Mx <value>`: Set selected motor `x` (x=[1, 6])  to `<value>` degrees. `<value>` must be within the allowed range for the motor.
 - `GET STATUS`: Get the current status of all motors and delay. The response will be in the format: `STATUS M1:<value> M2:<value> M3:<value> M4:<value> M5:<value> M6:<value> DELAY:<value>`.
 - `MOVE SAFETY`: Move all motors to the predefined safety position. Always use 20ms delay.
 - `PING`: Check if the connection is alive. The response will be `OK` if the robot is available. `ERROR` if the robot is not available due to any error.
@@ -104,3 +120,13 @@ The library used to communicate with the serial port is go.bug.st/serial. Docume
 - `INVALID FORMAT`: The command format is incorrect.
 - `INVALID VALUE`: The specified value is not valid.
 
+# references
+This section is for reference materials related to the Tinkerkit Braccio and the libraries used in this project. It's not used directly in the code but provides useful information for understanding and working with the Braccio robotic arm.
+
+- Tinkerkit Braccio official website: https://www.arduino.cc/en/Tinkerkit/Braccio
+- Tinkerkit Braccio library: https://github.com/arduino-libraries/Braccio/tree/master
+- go.bug.st/serial library: https://pkg.go.dev/go.bug.st/serial
+- Inverse Kinematics for arduino https://github.com/cgxeiji/CGx-InverseK
+- Alternative Inverse Kinematics for arduino: https://github.com/henriksod/Fabrik2DArduino 
+- Braccio URDF model: https://github.com/jonabalzer/braccio_description/tree/master
+- Braccio ROS package and alternative URDF: https://github.com/ohlr/braccio_arduino_ros_rviz
