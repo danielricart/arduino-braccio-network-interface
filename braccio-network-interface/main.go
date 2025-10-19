@@ -1,6 +1,8 @@
 package main
 
 import (
+	bracciorobot "braccio-network-interface/bracciorobot"
+	simrobot "braccio-network-interface/simrobot"
 	"bufio"
 	"flag"
 	"fmt"
@@ -29,21 +31,10 @@ func isValidSerialSpeed(speed int) bool {
 	return false
 }
 
-type Motor struct {
-	Name     string
-	Min      int
-	Max      int
-	Position int
-}
+type Motor = bracciorobot.Motor
 
 type RobotState struct {
-	Base         Motor
-	Shoulder     Motor
-	Elbow        Motor
-	Wrist        Motor
-	WristRotate  Motor
-	Gripper      Motor
-	Delay        int
+	bracciorobot.RobotState
 	Sim          bool
 	Connected    bool
 	SerialPort   string
@@ -52,17 +43,29 @@ type RobotState struct {
 }
 
 func NewRobotState(sim bool) *RobotState {
-	return &RobotState{
-		Base:        Motor{"Base", 0, 180, 90},
-		Shoulder:    Motor{"Shoulder", 15, 165, 45},
-		Elbow:       Motor{"Elbow", 0, 180, 180},
-		Wrist:       Motor{"Wrist", 0, 180, 180},
-		WristRotate: Motor{"WristRotate", 0, 180, 90},
-		Gripper:     Motor{"Gripper", 10, 73, 10},
-		Delay:       DefaultDelay,
-		Sim:         sim,
-		Connected:   false,
+	rs := &RobotState{
+		RobotState: bracciorobot.RobotState{
+			Base:        bracciorobot.Motor{"Base", 0, 180, 90, 0},
+			Shoulder:    bracciorobot.Motor{"Shoulder", 15, 165, 45, 0},
+			Elbow:       bracciorobot.Motor{"Elbow", 0, 180, 180, 0},
+			Wrist:       bracciorobot.Motor{"Wrist", 0, 180, 180, 0},
+			WristRotate: bracciorobot.Motor{"WristRotate", 0, 180, 90, 0},
+			Gripper:     bracciorobot.Motor{"Gripper", 10, 73, 10, 0},
+			Delay:       DefaultDelay,
+		},
+		Sim:       sim,
+		Connected: false,
 	}
+	if sim {
+		// Set msPerDeg for simulation mode
+		rs.Base.msPerDeg = 3.3
+		rs.Shoulder.msPerDeg = 3.3
+		rs.Elbow.msPerDeg = 3.3
+		rs.Wrist.msPerDeg = 3.3
+		rs.WristRotate.msPerDeg = 2.3
+		rs.Gripper.msPerDeg = 2.3
+	}
+	return rs
 }
 
 func (r *RobotState) Status() string {
@@ -152,14 +155,10 @@ func handleCommand(cmd string, state *RobotState) string {
 		state.Connected = true
 		return "OK"
 	case "DISCONNECT":
-		if !state.Connected {
-			return "OK"
+		s, done := disconnect(state)
+		if done {
+			return s
 		}
-		if state.SerialHandle != nil {
-			state.SerialHandle.Close()
-			state.SerialHandle = nil
-		}
-		state.Connected = false
 		return "OK"
 	case "SET":
 		if !state.Connected {
@@ -248,10 +247,112 @@ HELP
 EXIT`
 		return s
 	case "EXIT":
+		_ = moveSafety(state)
+		_, _ = disconnect(state)
 		return "BYE"
 	default:
 		return "UNKNOWN COMMAND"
 	}
+}
+
+func disconnect(state *RobotState) (string, bool) {
+	if !state.Connected {
+		return "OK", true
+	}
+	if state.SerialHandle != nil {
+		err := state.SerialHandle.Close()
+		if err != nil {
+			return "", false
+		}
+		state.SerialHandle = nil
+	}
+	state.Connected = false
+	return "", false
+}
+
+func toSimRobotState(state *RobotState) *simrobot.RobotState {
+	return &simrobot.RobotState{
+		Base:        simrobot.Motor(state.Base),
+		Shoulder:    simrobot.Motor(state.Shoulder),
+		Elbow:       simrobot.Motor(state.Elbow),
+		Wrist:       simrobot.Motor(state.Wrist),
+		WristRotate: simrobot.Motor(state.WristRotate),
+		Gripper:     simrobot.Motor(state.Gripper),
+		Delay:       state.Delay,
+	}
+}
+
+func updateFromSimRobotState(state *RobotState, sim *simrobot.RobotState) {
+	state.Base = bracciorobot.Motor(sim.Base)
+	state.Shoulder = bracciorobot.Motor(sim.Shoulder)
+	state.Elbow = bracciorobot.Motor(sim.Elbow)
+	state.Wrist = bracciorobot.Motor(sim.Wrist)
+	state.WristRotate = bracciorobot.Motor(sim.WristRotate)
+	state.Gripper = bracciorobot.Motor(sim.Gripper)
+	state.Delay = sim.Delay
+}
+
+func toSimRobotTargetsFromSlice(slice []int) map[int]int {
+	targets := make(map[int]int)
+	for i, v := range slice {
+		targets[i+1] = v
+	}
+	return targets
+}
+
+func setDelay(args []string, state *RobotState) string {
+	if len(args) != 1 {
+		return "INVALID NUMBER OF PARAMETERS"
+	}
+	val, err := strconv.Atoi(args[0])
+	if err != nil || val < DelayMin || val > DelayMax {
+		return "INVALID DELAY"
+	}
+	state.Delay = val
+	return "OK"
+}
+
+func setAllMotors(args []string, state *RobotState) string {
+	if len(args) < 6 || len(args) > 7 {
+		return "INVALID NUMBER OF PARAMETERS"
+	}
+	motors := []*Motor{&state.Base, &state.Shoulder, &state.Elbow, &state.Wrist, &state.WristRotate, &state.Gripper}
+	targetsSlice := make([]int, 6)
+	for i := 0; i < 6; i++ {
+		val, err := strconv.Atoi(args[i])
+		if err != nil {
+			return "INVALID VALUE"
+		}
+		if val < motors[i].Min || val > motors[i].Max {
+			return "MOTOR OUT OF RANGE"
+		}
+		targetsSlice[i] = val
+	}
+	delay := state.Delay
+	if len(args) == 7 {
+		d, err := strconv.Atoi(args[6])
+		if err != nil || d < 10 || d > 30 {
+			return "INVALID DELAY"
+		}
+		delay = d
+	}
+	if state.Sim {
+		simState := toSimRobotState(state)
+		targets := toSimRobotTargetsFromSlice(targetsSlice)
+		err := simrobot.SimulateMovement(simState, targets, delay)
+		if err != nil {
+			return "SIM ERROR"
+		}
+		updateFromSimRobotState(state, simState)
+		return "OK"
+	}
+	for i := 0; i < 6; i++ {
+		motors[i].Position = targetsSlice[i]
+	}
+	if len(args) == 7 {
+		state.Delay = delay
+	}
+	return "OK"
 }
 
 func setMotor(args []string, state *RobotState) string {
@@ -271,55 +372,42 @@ func setMotor(args []string, state *RobotState) string {
 		return "INVALID MOTOR"
 	}
 	if val < motor.Min || val > motor.Max {
-		return fmt.Sprintf("MOTOR %s OUT OF RANGE", motorIdx)
+		return fmt.Sprintf("MOTOR %s OUT OF RANGE", args[0])
+	}
+	if state.Sim {
+		targets := map[int]int{motorIdx: val}
+		simState := toSimRobotState(state)
+		err := simrobot.SimulateMovement(simState, targets, state.Delay)
+		if err != nil {
+			return "SIM ERROR"
+		}
+		updateFromSimRobotState(state, simState)
+		return "OK"
 	}
 	motor.Position = val
-	return "OK"
-}
-
-func setAllMotors(args []string, state *RobotState) string {
-	if len(args) < 6 || len(args) > 7 {
-		return "INVALID NUMBER OF PARAMETERS"
-	}
-	motors := []*Motor{&state.Base, &state.Shoulder, &state.Elbow, &state.Wrist, &state.WristRotate, &state.Gripper}
-	for i := 0; i < 6; i++ {
-		val, err := strconv.Atoi(args[i])
-		if err != nil {
-			return "INVALID VALUE"
-		}
-		if val < motors[i].Min || val > motors[i].Max {
-			return "MOTOR OUT OF RANGE"
-		}
-		motors[i].Position = val
-	}
-	if len(args) == 7 {
-		delay, err := strconv.Atoi(args[6])
-		if err != nil || delay < 10 || delay > 30 {
-			return "INVALID DELAY"
-		}
-		state.Delay = delay
-	}
-	return "OK"
-}
-
-func setDelay(args []string, state *RobotState) string {
-	if len(args) != 1 {
-		return "INVALID NUMBER OF PARAMETERS"
-	}
-	delay, err := strconv.Atoi(args[0])
-	if err != nil || delay < 10 || delay > 30 {
-		return "INVALID DELAY"
-	}
-	state.Delay = delay
 	return "OK"
 }
 
 func moveSafety(state *RobotState) string {
 	positions := strings.Fields(SafetyPositions)
 	motors := []*Motor{&state.Base, &state.Shoulder, &state.Elbow, &state.Wrist, &state.WristRotate, &state.Gripper}
+	targetsSlice := make([]int, 6)
 	for i := 0; i < 6; i++ {
 		val, _ := strconv.Atoi(positions[i])
-		motors[i].Position = val
+		targetsSlice[i] = val
+	}
+	if state.Sim {
+		simState := toSimRobotState(state)
+		targets := toSimRobotTargetsFromSlice(targetsSlice)
+		err := simrobot.SimulateMovement(simState, targets, 20)
+		if err != nil {
+			return "SIM ERROR"
+		}
+		updateFromSimRobotState(state, simState)
+		return "OK"
+	}
+	for i := 0; i < 6; i++ {
+		motors[i].Position = targetsSlice[i]
 	}
 	state.Delay = 20
 	return "OK"
