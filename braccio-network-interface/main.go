@@ -57,13 +57,13 @@ func NewRobotState(sim bool) *RobotState {
 		Connected: false,
 	}
 	if sim {
-		// Set msPerDeg for simulation mode
-		rs.Base.msPerDeg = 3.3
-		rs.Shoulder.msPerDeg = 3.3
-		rs.Elbow.msPerDeg = 3.3
-		rs.Wrist.msPerDeg = 3.3
-		rs.WristRotate.msPerDeg = 2.3
-		rs.Gripper.msPerDeg = 2.3
+		// Set MsPerDeg for simulation mode
+		rs.Base.MsPerDeg = 3.3
+		rs.Shoulder.MsPerDeg = 3.3
+		rs.Elbow.MsPerDeg = 3.3
+		rs.Wrist.MsPerDeg = 3.3
+		rs.WristRotate.MsPerDeg = 2.3
+		rs.Gripper.MsPerDeg = 2.3
 	}
 	return rs
 }
