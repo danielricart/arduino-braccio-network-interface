@@ -4,6 +4,8 @@ This project provides a network-serial interface for the Tinkerkit Braccio robot
 
 It includes a simulation mode that does not try to connect to the Braccio, useful for testing and development without the physical hardware.
 
+The board is directly connected to a computer via USB Serial, and the network-serial interface runs on the computer, allowing remote control of the Braccio over the network via the computer/server.
+
 ## Features
 - Control the Tinkerkit Braccio robotic arm over a network connection.
 - Send commands via serial to the Braccio.
@@ -13,11 +15,42 @@ It includes a simulation mode that does not try to connect to the Braccio, usefu
 - tracks motor positions and reports them over the network.
 
 ## Requirements
-- Braccio robotic arm
-- Arduino board compatible with Braccio. Requires Serial over USB.
-- Network connectivity (Ethernet or Wi-Fi). Works on localhost
+- Braccio robotic arm (not really needed)
+- Arduino board (Uno, Mega, etc.). If it has the UNO form factor/pinout it will plug directly to the Braccio board.
+- Network connectivity (Ethernet or Wi-Fi). Also works on localhost
 - Arduino IDE for uploading the code to the board
+- golang 1.25 or higher for building the network-serial interface. check https://go.dev/dl/ on how to install golang for your specific platform.
 - Tinkerkit Braccio library
+
+## Installation
+The project is composed of two parts. The robot side (Arduino) and the network-serial interface side (Golang). 
+
+Clone this repository to your local machine.
+
+### Robot side (Arduino)
+1. Open the Arduino IDE 
+2. install the Tinkerkit Braccio library. You can do this via the Library Manager (Sketch -> Include Library -> Manage Libraries...) and searching for "Braccio". Install "Braccio by Andrea Martino, Arduino".
+3. Install the CGx-InverseK library for Inverse Kinematics calculations. You can find it here: https://github.com/cgxeiji/CGx-InverseK 
+4. Connect your board to the computer. 
+5. Select your boaard from the boards list. Upload the provided Arduino sketch braccio-arduino-serial-interface.ino to your Arduino board.
+6. Connect the Braccio robotic arm to the Arduino board.
+7. Connect the Arduino board to your computer via USB.
+8. Open the serial monitor port and type `PING` to check if the robot is responding. You should see `OK` if everything is working.
+
+
+### Network-serial interface side (Golang)
+1. Make sure you have golang 1.25 or higher installed on your machine. Use the command `go version` to check your golang version.
+2. If you don't have golang installed, follow the instructions on https://go.dev/dl/ to install it for your platform.
+3. Open a terminal and navigate to the cloned repository.
+4. Build the network-serial interface using the command:
+   ```bash
+   go build -o braccio-network-serial-interface main.go
+   ```
+5. Run the network-serial interface with the command:
+   ```bash
+   ./braccio-network-serial-interface
+   ```
+6. Establish the connection to the board using the `CONNECT <port> <speed>` command, where `<port>` is the serial port of your Arduino board (e.g., `/dev/ttyUSB0` on Linux/Mac or `COM3` on Windows) and `<speed>` is the baud rate (Arduino code is set to `115200`).
 
 ## Braccio specifications
 ### Motor limits
@@ -130,3 +163,18 @@ This section is for reference materials related to the Tinkerkit Braccio and the
 - Alternative Inverse Kinematics for arduino: https://github.com/henriksod/Fabrik2DArduino 
 - Braccio URDF model: https://github.com/jonabalzer/braccio_description/tree/master
 - Braccio ROS package and alternative URDF: https://github.com/ohlr/braccio_arduino_ros_rviz
+
+# Future improvements
+## Arduino Q
+There's this new Arduino Q boards that have both a computer side (Zephyr OS Linux) and a microcontroller side (Arduino). It would be interesting to port the network-serial interface to run directly on the Arduino Q board, eliminating the need for an external computer and making the arm fully standalone, provided it can be connected to the network via Wi-Fi.
+
+The best implementation would be to migrate from the Serial Port communications to the Arduino Q's native built-in RPC library Arduino Bridge ([Docs here](https://docs.arduino.cc/tutorials/uno-q/user-manual/#communication), but probably other approaches can be taken depending ont he state-of-the-art and coding styles and preferences. 
+
+## Better Inverse Kinematics
+THe current implementation for IK is clumsy and cannot compute scenarios that are probably reachable. Other libraries like Fabrik2DArduino may work a bit better.
+An alternative to this would be to translate the IK calculations to a computer-based model that only transfers the angular positions to the robot.
+
+## 3D Simulator
+A robotic arm is a physical piece in the real world. Sometimes it's not possible to have it connected. When exploring movements and integrations it can even be dangerously destructive for the real piece or its surroundings to use the real arm. Having a 3D representation of it that can connect to the network-serial interface and simulate the movements of the arm would be very useful. The network-serial interface already has a dry-run mode that can be used for this purpose.
+
+There are links to the UDRF model of the Braccio in the references section that can be used as a starting point for this simulator, as they even contain some 3D assets that can be used for this. 
