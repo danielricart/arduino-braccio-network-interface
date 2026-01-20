@@ -13,6 +13,8 @@ The board is directly connected to a computer via USB Serial, and the network-se
 - Configurable network and serial settings.
 - Logging capabilities for monitoring and debugging.
 - tracks motor positions and reports them over the network.
+- Inverse Kinematics calculations for positioning the arm in 3D space.
+- Simulation mode for testing without physical hardware.
 
 ## Requirements
 - Braccio robotic arm (not really needed)
@@ -168,13 +170,18 @@ This section is for reference materials related to the Tinkerkit Braccio and the
 ## Arduino Q
 There's this new Arduino Q boards that have both a computer side (Zephyr OS Linux) and a microcontroller side (Arduino). It would be interesting to port the network-serial interface to run directly on the Arduino Q board, eliminating the need for an external computer and making the arm fully standalone, provided it can be connected to the network via Wi-Fi.
 
-The best implementation would be to migrate from the Serial Port communications to the Arduino Q's native built-in RPC library Arduino Bridge ([Docs here](https://docs.arduino.cc/tutorials/uno-q/user-manual/#communication), but probably other approaches can be taken depending ont he state-of-the-art and coding styles and preferences. 
+A possible implementation would be to migrate from the Serial Port communications to the Arduino Q's native built-in RPC library Arduino Bridge ([Docs here](https://docs.arduino.cc/tutorials/uno-q/user-manual/#communication), but probably other approaches can be taken depending on the state-of-the-art and coding styles and preferences. 
 
 ## Better Inverse Kinematics
 THe current implementation for IK is clumsy and cannot compute scenarios that are probably reachable. Other libraries like Fabrik2DArduino may work a bit better.
-An alternative to this would be to translate the IK calculations to a computer-based model that only transfers the angular positions to the robot.
+An alternative to this would be to translate the IK calculations to a computer-based model that only transfers the angular positions to the robot. This can be integrating the provided external tool for IK calculations `braccio-inverse-kinematics` or a new one.
 
 ## 3D Simulator
 A robotic arm is a physical piece in the real world. Sometimes it's not possible to have it connected. When exploring movements and integrations it can even be dangerously destructive for the real piece or its surroundings to use the real arm. Having a 3D representation of it that can connect to the network-serial interface and simulate the movements of the arm would be very useful. The network-serial interface already has a dry-run mode that can be used for this purpose.
 
 There are links to the UDRF model of the Braccio in the references section that can be used as a starting point for this simulator, as they even contain some 3D assets that can be used for this. 
+
+# Contributing
+Contributions are welcome! If you find a bug or have a feature request, please open an issue on GitHub. If you want to contribute code, please fork the repository and create a pull request.
+
+If you build upon this project, please give appropriate credit, and provide a link to the original project. You may use this project for commercial purposes as long as you comply with the license terms.
