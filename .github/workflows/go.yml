@@ -1,0 +1,86 @@
+# Go CI: run tests, produce coverage, build artifacts, and upload them
+# Triggers on push, pull request, and manual dispatch.
+name: Go CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  test-and-build:
+    name: Test & Build (Go ${{ matrix.go-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: ["1.25"]
+    env:
+      # Cache location for module downloads
+      GOMODCACHE: ${{ runner.temp }}/gocache
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Cache Go build and modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ env.GOMODCACHE }}
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
+
+      - name: Ensure modules are downloaded
+        run: go mod download
+
+      - name: Run go vet
+        run: go vet ./...
+
+      - name: Run tests (with coverage)
+        run: |
+          mkdir -p testresults
+          # run all tests and collect a coverage profile
+          go test ./... -v -covermode=atomic -coverprofile=testresults/coverage.out
+        continue-on-error: false
+
+      - name: Upload test coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.go-version }}
+          path: testresults/coverage.out
+
+      - name: Build all packages
+        run: |
+          mkdir -p build
+          # If your repository produces one or more binaries under cmd/*, build them:
+          if ls cmd 1> /dev/null 2>&1; then
+            for d in cmd/*; do
+              if [ -d "$d" ]; then
+                name=$(basename "$d")
+                go build -o "build/${name}" "${d}"
+              fi
+            done
+          else
+            # Fallback: build packages (if main packages present, this will produce binaries)
+            go build -o build/ ./...
+          fi
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.go-version }}
+          path: build/
