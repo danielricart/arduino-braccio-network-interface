@@ -1,11 +1,11 @@
 # Tinkerkit Braccio repository
 This repository contains different tools to control and operate Tinkerkit Braccio, an arduino-powered hobbyist robotic arm.
 
-## about Braccio
+## About Braccio
 
 Braccio is an arduino-powered tabletop rotobic arm. Powered by 6 servo motors and controlled using any arduino board that has an arduino UNO form factor.
 
-## repo content
+## Repo content
 
 - `braccio-arduino-serial-interface` contents the arduino code. Send `HELP` using the serial port to check on the commands available. 
 - `braccio-network-interface` is a network proxy for the `braccio-arduino-serial-interface`. 
